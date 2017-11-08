@@ -148,8 +148,8 @@ namespace BackupExecutor {
             //--------------------------------------------------------------------------------------------------------------
             // Set up a timer to trigger every 60 seconds.  
             System.Timers.Timer executorTimer = new System.Timers.Timer();
-            //timer.Interval = 60000; // 60 seconds  
-            executorTimer.Interval = 6000; // 6 seconds 
+            executorTimer.Interval = 60000; // 60 seconds  
+            //executorTimer.Interval = 6000; // 6 seconds TODO: change to correct time
             executorTimer.Elapsed += new System.Timers.ElapsedEventHandler(this.OnExecutorTimer);
             executorTimer.Start();
 
@@ -157,8 +157,8 @@ namespace BackupExecutor {
             // If the server is on mode: MASTER, set up a timer to monitor activity every 5 minutes, 
             if(mode == ServiceModes.MASTER) {
                 System.Timers.Timer monitoringTimer = new System.Timers.Timer();
-                //monitoringTimer.Interval = 300000; // 5 minutes 
-                monitoringTimer.Interval = 10000; // 10 seconds
+                monitoringTimer.Interval = 300000; // 5 minutes 
+                //monitoringTimer.Interval = 10000; // 10 seconds TODO: change to correct time
                 monitoringTimer.Elapsed += new System.Timers.ElapsedEventHandler(this.OnMonitoringTimer);
                 monitoringTimer.Start();
             }
@@ -169,6 +169,7 @@ namespace BackupExecutor {
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
 
             Console.WriteLine("Service started. State: Running\n");
+
         }
 
         /**
@@ -180,23 +181,20 @@ namespace BackupExecutor {
          *          - Check if the strategy isn't on queue already. If it isn't, it will:
          *              - Put the strategy on queue to run
          *              - Start a new thread to run the strategy
-         *              - Insert the log back to the central server
+         *              - Insert the log back to the local and central server
          *          - If the strategy is on queue, it will idle
          *      - If no strategies are found, it will idle
          *      
-         *      Aditionally, if the service is configured in MASTER mode it will:
-         *      - Check for strategies that should've been run on the past 5 minutes
-         *  
          */
         public void OnExecutorTimer(object sender, System.Timers.ElapsedEventArgs args) {
             //Console.WriteLine("Service on executor timer. State: Running");
-            int day = (int) DateTime.Now.DayOfWeek;
-            int hour = (int) DateTime.Now.Hour;
-            int minute = (int) DateTime.Now.Minute;
+            int day = (int)DateTime.Now.DayOfWeek;
+            int hour = (int)DateTime.Now.Hour;
+            int minute = (int)DateTime.Now.Minute;
 
             // TODO: Change to day, hour, minute.
-            //ArrayList scheduled = DatabaseUtils.GetScheduledBackups(1, 12, 35);
-            ArrayList scheduled = DatabaseUtils.GetScheduledBackups(1, 11, 35);
+            ArrayList scheduled = DatabaseUtils.GetScheduledBackups(1, 12, 35);
+            //ArrayList scheduled = DatabaseUtils.GetScheduledBackups(day, hour, minute);
             ArrayList pending = BackupQueue.FilterPending(scheduled);
 
             Console.WriteLine("Scheduled: {0}", string.Join(" | ", scheduled.ToArray()));
@@ -218,19 +216,19 @@ namespace BackupExecutor {
                     strategy.Log = Rman.AttemptLocalBackup(strategy);
                     DatabaseUtils.InsertLog(strategy);
                     if(mode == ServiceModes.SLAVE) {
-                        //DatabaseUtils.InsertLog(strategy, centralIp, centralPort);
+                        DatabaseUtils.InsertLog(strategy, centralIp, centralPort);
                     }
 
                     if (strategy.Log.Contains("ERROR MESSAGE STACK FOLLOWS")) {
                         strategy.Error = "ERROR: An error has occured during the current backup. Please refer to the log for further explanation on why this happened";
                         DatabaseUtils.InsertError(strategy);
                         if (mode == ServiceModes.SLAVE) {
-                            //DatabaseUtils.InsertError(strategy, centralIp, centralPort);
+                            DatabaseUtils.InsertError(strategy, centralIp, centralPort);
                         }
                     }
 
                     // TODO: Remove from backup queue
-                    BackupQueue.RemoveFromQueue(name);
+                    // BackupQueue.RemoveFromQueue(name);
 
                     Console.WriteLine("Thread finished");
 
@@ -245,13 +243,9 @@ namespace BackupExecutor {
          *  Every time it executes, it will:
          *      - Check for strategies that should've been run on the past 5 minutes.
          *        This information will be found in the log table.
-         *        If the log for that strategy is found:
-         *          - Scan the log for the "ERROR" word. If the word is found:
-         *              - Insert a message in an error table, stating what strategy failded.
-         *          - If it isn't found, it will idle.    
-         *      - If the log for that strategy isn't found:
-         *          - Insert a message in an error table, stating that a strategy has not run yet.
-         *  
+         *        If the log for any given strategy isn't found:
+         *          - Insert an error stating that a strategy that should have run hasn't run yet   
+         *          
          */
         public void OnMonitoringTimer(object sender, System.Timers.ElapsedEventArgs args) {
             //Console.WriteLine("Service on executor timer. State: Running");
@@ -262,6 +256,8 @@ namespace BackupExecutor {
             // TODO: Change to day, hour, minute.
             ArrayList scheduled = DatabaseUtils.GetBackupsInTwelfth(1, 12, 35);
             ArrayList logged = DatabaseUtils.GetLoggedBackupsInTwelfth(1, 9, 11);
+            //ArrayList scheduled = DatabaseUtils.GetBackupsInTwelfth(day, hour, minute);
+            //ArrayList logged = DatabaseUtils.GetLoggedBackupsInTwelfth(day, hour, minute);
             ArrayList pending = new ArrayList(scheduled);
 
             foreach (string strategy in logged) {

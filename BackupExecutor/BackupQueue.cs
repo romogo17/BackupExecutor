@@ -12,7 +12,7 @@ namespace BackupExecutor {
         private static readonly BackupQueue instance = new BackupQueue();
 
         private BackupQueue() {
-            backupQueue.Add("EST_1509986184");
+            backupQueue.Add("EST_1509986184"); // TODO: remove this
         }
 
         public static BackupQueue Instance {
