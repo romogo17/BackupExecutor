@@ -78,6 +78,48 @@ namespace BackupExecutor {
             }
         }
 
+        public static ArrayList GetScheduledCentralBackups(int day, int hour, int minutes, string ip = "localhost", string port = "1521") {
+            string connectionString = "User Id=SYSTEM;Password=MANAGER;Data Source=" + ip + ":" + port + "/XE";
+
+            using (OracleConnection objConn = new OracleConnection(connectionString)) {
+                DataSet data = new DataSet();
+
+                // Create and execute the command
+                OracleCommand objCmd = new OracleCommand();
+                objCmd.Connection = objConn;
+                objCmd.CommandText = "scheduled_central_backups";
+                objCmd.CommandType = CommandType.StoredProcedure;
+
+                // Set parameters
+                OracleParameter retParam = objCmd.Parameters.Add("return_value", OracleDbType.RefCursor, ParameterDirection.ReturnValue);
+                objCmd.Parameters.Add("d", OracleDbType.Int32, day, System.Data.ParameterDirection.Input);
+                objCmd.Parameters.Add("h", OracleDbType.Int32, hour, System.Data.ParameterDirection.Input);
+                objCmd.Parameters.Add("m", OracleDbType.Int32, minutes, System.Data.ParameterDirection.Input);
+
+                try {
+                    objConn.Open();
+                    objCmd.ExecuteNonQuery();
+
+                    OracleDataAdapter a = new OracleDataAdapter(objCmd);
+                    //a.TableMappings.Add("MyTable", "sample_table"); // possible need for this
+                    a.Fill(data);
+
+                } catch (OracleException ex) {
+                    System.Console.WriteLine("ERROR: Exception {0}", ex.Message);
+                    return new ArrayList();
+                } finally {
+                    objConn.Close();
+                    objConn.Dispose();
+                }
+
+                ArrayList list = new ArrayList();
+                foreach (DataRow dr in data.Tables[0].Rows) {
+                    list.Add(dr.ItemArray[0]);
+                }
+                return list;
+            }
+        }
+
         public static ArrayList GetBackupsInTwelfth(int day, int hour, int minutes, string ip = "localhost", string port = "1521") {
             string connectionString = "User Id=SYSTEM;Password=MANAGER;Data Source=" + ip + ":" + port + "/XE";
             int IMin, FMin;

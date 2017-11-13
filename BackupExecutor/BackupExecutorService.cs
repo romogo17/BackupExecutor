@@ -149,7 +149,6 @@ namespace BackupExecutor {
             // Set up a timer to trigger every 60 seconds.  
             System.Timers.Timer executorTimer = new System.Timers.Timer();
             executorTimer.Interval = 60000; // 60 seconds  
-            //executorTimer.Interval = 6000; // 6 seconds TODO: change to correct time
             executorTimer.Elapsed += new System.Timers.ElapsedEventHandler(this.OnExecutorTimer);
             executorTimer.Start();
 
@@ -158,7 +157,6 @@ namespace BackupExecutor {
             if(mode == ServiceModes.MASTER) {
                 System.Timers.Timer monitoringTimer = new System.Timers.Timer();
                 monitoringTimer.Interval = 300000; // 5 minutes 
-                //monitoringTimer.Interval = 10000; // 10 seconds TODO: change to correct time
                 monitoringTimer.Elapsed += new System.Timers.ElapsedEventHandler(this.OnMonitoringTimer);
                 monitoringTimer.Start();
             }
@@ -192,9 +190,9 @@ namespace BackupExecutor {
             int hour = (int)DateTime.Now.Hour;
             int minute = (int)DateTime.Now.Minute;
 
-            // TODO: Change to day, hour, minute.
-            ArrayList scheduled = DatabaseUtils.GetScheduledBackups(1, 12, 35);
-            //ArrayList scheduled = DatabaseUtils.GetScheduledBackups(day, hour, minute);
+            ArrayList scheduled = mode == ServiceModes.MASTER ?
+                DatabaseUtils.GetScheduledCentralBackups(day, hour, minute)
+                : DatabaseUtils.GetScheduledBackups(day, hour, minute);
             ArrayList pending = BackupQueue.FilterPending(scheduled);
 
             Console.WriteLine("Scheduled: {0}", string.Join(" | ", scheduled.ToArray()));
@@ -207,11 +205,10 @@ namespace BackupExecutor {
                 if(strategy.Instructions.Count == 0) {
                     continue;
                 }
-                
-                //Console.WriteLine("Strategy: {0}", strategy.ToString());
+
                 new Thread(() => {
                     Thread.CurrentThread.IsBackground = true;
-                    Console.WriteLine("Starting thread");
+                    Console.WriteLine("Starting thread for strategy {0}", name);
 
                     strategy.Log = Rman.AttemptLocalBackup(strategy);
                     DatabaseUtils.InsertLog(strategy);
@@ -226,11 +223,9 @@ namespace BackupExecutor {
                             DatabaseUtils.InsertError(strategy, centralIp, centralPort);
                         }
                     }
+                    BackupQueue.RemoveFromQueue(name);
 
-                    // TODO: Remove from backup queue
-                    // BackupQueue.RemoveFromQueue(name);
-
-                    Console.WriteLine("Thread finished");
+                    Console.WriteLine("Thread finished for strategy {0}", name);
 
                 }).Start();
             }
@@ -248,16 +243,12 @@ namespace BackupExecutor {
          *          
          */
         public void OnMonitoringTimer(object sender, System.Timers.ElapsedEventArgs args) {
-            //Console.WriteLine("Service on executor timer. State: Running");
             int day = (int)DateTime.Now.DayOfWeek;
             int hour = (int)DateTime.Now.Hour;
             int minute = (int)DateTime.Now.Minute;
 
-            // TODO: Change to day, hour, minute.
-            ArrayList scheduled = DatabaseUtils.GetBackupsInTwelfth(1, 12, 35);
-            ArrayList logged = DatabaseUtils.GetLoggedBackupsInTwelfth(1, 9, 11);
-            //ArrayList scheduled = DatabaseUtils.GetBackupsInTwelfth(day, hour, minute);
-            //ArrayList logged = DatabaseUtils.GetLoggedBackupsInTwelfth(day, hour, minute);
+            ArrayList scheduled = DatabaseUtils.GetBackupsInTwelfth(day, hour, minute);
+            ArrayList logged = DatabaseUtils.GetLoggedBackupsInTwelfth(day, hour, minute);
             ArrayList pending = new ArrayList(scheduled);
 
             foreach (string strategy in logged) {
