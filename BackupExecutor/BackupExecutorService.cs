@@ -247,6 +247,8 @@ namespace BackupExecutor {
             int hour = (int)DateTime.Now.Hour;
             int minute = (int)DateTime.Now.Minute;
 
+            Thread.Sleep(240000);
+
             ArrayList scheduled = DatabaseUtils.GetBackupsInTwelfth(day, hour, minute);
             ArrayList logged = DatabaseUtils.GetLoggedBackupsInTwelfth(day, hour, minute);
             ArrayList pending = new ArrayList(scheduled);
